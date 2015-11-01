@@ -6,8 +6,10 @@ build : kernel_modules
 kernel_modules : 
 	make -C /lib/modules/${KVERS}/build  M=${CURDIR} modules
 
+cleanall:
+	rm -rf *.ko
 clean : 
-	rm -rf *.o *.ko
+	rm -rf *.o
 	rm -rf modules.order 
 	rm -rf Module.symvers
 	rm -rf do_execve.mod*

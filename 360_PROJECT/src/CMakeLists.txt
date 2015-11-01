@@ -1,0 +1,6 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(hack_project)
+INCLUDE_DIRECTORIES(../include)
+INCLUDE_DIRECTORIES(../modules)
+SET(MONITOR_SOURCES  hack_disassembl.c hack_monitor.c)
+ADD_EXECUTABLE(hack_monitor ${MONITOR_SOURCES})

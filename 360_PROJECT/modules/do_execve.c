@@ -1,3 +1,7 @@
+/*
+ * * author：liyang
+ * * encode: utf-8
+ */
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/kprobes.h>
@@ -5,7 +9,23 @@
 #include <linux/namei.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/types.h>
+#include <linux/skbuff.h>
+#include <linux/netlink.h>
+#include <net/sock.h>
+#include <net/netlink.h>
+#include <net/net_namespace.h>
+#include <linux/string.h>
+#include "nl_hack.h"
 
+u32 dst_pid = 0; /* 用户进程的PID */
+struct sock *nl_sk = NULL;
+static struct kprobe kp =
+{
+  .symbol_name = "sys_execve", /* 要劫持的系统调用名称 */
+};
+
+/* 用于释放getname返回的内存，编译的时候提示符号未定义，只好拷贝到这里了*/
 void final_putname(struct filename *name)
 {
     if (name->separate) {
@@ -16,12 +36,14 @@ void final_putname(struct filename *name)
     }
 }
 
+/* 用于调试， 寄存器打印 */
 void printk_address(unsigned long address, int reliable)
 {
     pr_cont(" [<%p>] %s%pB\n",
         (void *)address, reliable ? "" : "? ", (void *)address);
 }
 
+/* 用于调试， 寄存器打印*/
 void __show_regs(struct pt_regs *regs, int all)
 {
     unsigned long cr0 = 0L, cr2 = 0L, cr3 = 0L, cr4 = 0L, fs, gs, shadowgs;
@@ -79,54 +101,94 @@ void __show_regs(struct pt_regs *regs, int all)
     printk(KERN_DEFAULT "DR3: %016lx DR6: %016lx DR7: %016lx\n", d3, d6, d7);
 }
 
-static struct kprobe kp = 
+/* 处理用户进程发来的消息，主要是提取用户进程的PID，目前只支持一个用户进程的通信 */
+void netlink_recv_hack(struct sk_buff *__skb)
 {
-  .symbol_name = "sys_execve",
-};
+    struct sk_buff *skb;
+    struct nlmsghdr *nlh;
+    skb = skb_get(__skb);
+    if(skb && NLMSG_SPACE(0) <= skb->len)
+    {
+        nlh = nlmsg_hdr(skb);
+        if (nlh && NLMSG_TYPE_HACK_READY == nlh->nlmsg_type) {
+            /* 只从指定类型的消息中提取pid */
+            dst_pid = nlh->nlmsg_pid;
+            printk(KERN_INFO "dst_pid is %d\n", dst_pid);
+        }
+        kfree_skb(skb);
+    }
+}
 
+/* 将截取到的命令发送给用户进程 */
+void netlink_send_hack(const struct filename * fname)
+{
+    if (dst_pid)
+    {
+        struct sk_buff *skb;
+        struct nlmsghdr *nlh;
+        size_t slen = strnlen(fname->name, NLMSG_SPACE(NLMSG_SIZE));
+
+        skb = alloc_skb(NLMSG_SPACE(NLMSG_SIZE), GFP_KERNEL);
+        if(!skb)
+        {
+            printk(KERN_ERR "alloc skb failed\n");
+            return;
+        }
+
+        nlh = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(NLMSG_SIZE), 0);
+        nlh->nlmsg_type = NLMSG_TYPE_HACK_EXECVE;
+
+        NETLINK_CB(skb).portid = dst_pid;
+        NETLINK_CB(skb).dst_group = 0;
+
+        memcpy(NLMSG_DATA(nlh), fname->name, slen + 1);
+        netlink_unicast(nl_sk, skb, dst_pid, MSG_DONTWAIT);
+    }
+}
+
+/* 注册在指令执行之前的探测点 */
 static int handler_pre(struct kprobe *p, struct pt_regs *regs)
 {
     int error;
     struct filename *fname;
 
-    fname = getname( (char __user *) regs->bx );
+    fname = getname((char __user *) regs->bx);
     error = PTR_ERR(fname);
     if (!IS_ERR(fname))
     {
-        printk("file to execve: %s\n", fname->name);
+        printk(KERN_INFO "file to execve: %s\n", fname->name);
+        netlink_send_hack(fname);
         final_putname(fname);
     }
     
-    /*
-    struct thread_info *thread = current_thread_info();
-    printk(KERN_INFO "pre-handler thread info: flags = %x, status = %d, cpu = %d, task->pid = %d\n",
-        thread->flags, thread->status, thread->cpu, thread->task->pid);
-    */
     return 0;
 }
 
+/* 注册在指令执行之后的探测点 */
 static void handler_post(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
 {  
-    /*
-    struct thread_info *thread = current_thread_info();
-    printk(KERN_INFO "post-handler thread info: flags = %x, status = %d, cpu = %d, task->pid = %d\n",
-        thread->flags, thread->status, thread->cpu, thread->task->pid);
-    */
 }
 
+/* 内存访问错误的时候不需要处理 */
 static int handler_fault(struct kprobe *p, struct pt_regs *regs, int trapnr)
 {
-    /*
-    printk(KERN_INFO "fault_handler: p->addr = 0x%p, trap #%dn",
-        p->addr, trapnr);
-    */
-
     return 0;
 }
 
 static int __init kprobe_init(void)
 {
     int ret;
+    /* 注册netlink套接字 */
+    struct netlink_kernel_cfg cfg = {
+        .input      = netlink_recv_hack,
+    };
+    nl_sk = netlink_kernel_create(&init_net, NETLINK_HACK_EXECVE, &cfg);
+    if(!nl_sk)
+    {
+        printk(KERN_ERR "create netlink kernel socket failed\n");
+        return -ENOMEM;
+    }
+
     kp.pre_handler = handler_pre;
     kp.post_handler = handler_post;
     kp.fault_handler = handler_fault;
@@ -143,6 +205,7 @@ static int __init kprobe_init(void)
 
 static void __exit kprobe_exit(void)
 {
+    netlink_kernel_release(nl_sk);
     unregister_kprobe(&kp);
     printk(KERN_INFO "kprobe at %p unregistered\n", kp.addr);
 }
