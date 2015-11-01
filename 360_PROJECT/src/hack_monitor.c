@@ -42,7 +42,7 @@ static int netlink_parse(struct nlmsghdr *nlh, int *client_sockfd)
     }else if(1 == ret)
     {
         char send_buff[SOCKET_SEND_MAXLEN];
-        snprintf(send_buff, SOCKET_SEND_MAXLEN, "%s,is_call_in=true,", cmdstr);
+        snprintf(send_buff, SOCKET_SEND_MAXLEN, "%s, is_call_in=true", cmdstr);
         handle_send(*client_sockfd, send_buff);
         HACK_DEBUG(0, "find assembly instruction \"in\"\n");
     }

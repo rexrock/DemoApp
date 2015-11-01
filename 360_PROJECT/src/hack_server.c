@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
@@ -70,10 +71,25 @@ int handle_recv(int sock_fd, FILE *fout)
                     time_t curtime;
                     time(&curtime);
                     struct tm *timeinfo = localtime(&curtime);
-                    char time_buff[32];
+                    char time_buff[64];
                     char *format = "[%Y-%m-%d %H:%M:%S] ";
                     strftime(time_buff, sizeof(time_buff), format, timeinfo);
+                    /* get socket name */
+                    struct sockaddr_in client_address;
+                    int namelen = sizeof(client_address);
+                    int ret = getsockname(sock_fd, (struct sockaddr *)&client_address, &namelen);
+                    char name_buff[64];
+                    if ( 0 == ret || namelen == sizeof(client_address))
+                    {
+                        snprintf(name_buff, 64, "[client_ip=%s, client_port=%d] ", 
+                            inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
+                    }else
+                    {
+                        snprintf(name_buff, 64, "[client_ip=0.0.0.0, client_port=0] ");
+                    }
+                    /* write to file */
                     fwrite(time_buff, strlen(time_buff), 1, fout);
+                    fwrite(name_buff, strlen(name_buff), 1, fout);
                     fwrite(recv_buff, recv_len, 1, fout);
                     fwrite("\n", 1, 1, fout);
                     fflush(fout);
