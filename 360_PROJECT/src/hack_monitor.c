@@ -18,13 +18,14 @@
 #include <errno.h>
 #include "nl_hack.h"
 #include "hack_disassembl.h"
+#include "hack_client.h"
 
 /* 
  * 功  能：处理通过netlink接收到的数据
  * 参  数：nlh, 通过netlink收到的报文
  * 返回值：
  */
-static int netlink_parse(struct nlmsghdr *nlh)
+static int netlink_parse(struct nlmsghdr *nlh, int *client_sockfd)
 {
     int ret = 0;
     char *out = NULL;
@@ -34,9 +35,15 @@ static int netlink_parse(struct nlmsghdr *nlh)
     HACK_DEBUG(0, "executable_file_check return %d with \"%s\"\n", ret, out ? out : "NULL");
     if (0 == ret)
     {
+        char send_buff[SOCKET_SEND_MAXLEN];
+        snprintf(send_buff, SOCKET_SEND_MAXLEN, "%s, is_call_in=false", cmdstr);
+        handle_send(*client_sockfd, send_buff);
         HACK_DEBUG(0, "cannot find assembly instruction \"in\"\n");
     }else if(1 == ret)
     {
+        char send_buff[SOCKET_SEND_MAXLEN];
+        snprintf(send_buff, SOCKET_SEND_MAXLEN, "%s,is_call_in=true,", cmdstr);
+        handle_send(*client_sockfd, send_buff);
         HACK_DEBUG(0, "find assembly instruction \"in\"\n");
     }
     if (out) free(out);
@@ -49,7 +56,7 @@ static int netlink_parse(struct nlmsghdr *nlh)
  * 返回值：
  */
 
-static int netlink_recv(int sock_fd)
+static int netlink_recv(int sock_fd, int *client_sockfd)
 {
     int save_errno = 0;
     char buf[NLMSG_SIZE];
@@ -87,7 +94,7 @@ static int netlink_recv(int sock_fd)
         nlh = (struct nlmsghdr *)buf;
         if (nlh->nlmsg_type == NLMSG_TYPE_HACK_EXECVE)
         {
-            netlink_parse(nlh);
+            netlink_parse(nlh, client_sockfd);
         }
     }
     return 0;
@@ -169,7 +176,9 @@ int main()
 
     /* OK, let's go */
     netlink_send_ready(sock_fd);
-    netlink_recv(sock_fd);
+    int client_sockfd = init_client_connect();
+    netlink_recv(sock_fd, &client_sockfd);
+    if (0 < client_sockfd) close(client_sockfd);
     close(sock_fd);
     return 0;
 }

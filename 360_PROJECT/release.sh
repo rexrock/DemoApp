@@ -31,4 +31,5 @@ cd ${ori_pwd}/src/
 hack_clear_all
 cmake CMakeLists.txt && make
 mv hack_monitor ${ori_pwd}/release/bin/
+mv hack_server ${ori_pwd}/release/bin/
 hack_clear_base
