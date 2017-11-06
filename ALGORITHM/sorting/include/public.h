@@ -22,3 +22,13 @@ extern void print_array(int a[], int n)
     }
     printf("\n");
 }
+
+extern void swap(int s[],int i,int j) {
+    if (i == j) return;
+    printf("%d <=> %d\n", i, j); 
+    int temp;
+    temp=s[i];
+    s[i]=s[j];
+    s[j]=temp;
+    print_array(array, ARRAY_LENGTH);
+}

@@ -13,10 +13,7 @@ void bubble_sort_ok(int a[], int n)
             count++;
             if (a[i] > a[i + 1])
             {
-                //fprintf(stderr, "up   : %d <--> %d\n", a[i], a[i+1]);
-                int tmp = a[i + 1];
-                a[i + 1] = a[i];
-                a[i] = tmp;
+                swap(a, i, i + 1);
                 pos = i;
             }
         }
@@ -27,10 +24,7 @@ void bubble_sort_ok(int a[], int n)
             count++;
             if (a[j] < a[j - 1])
             {
-                //fprintf(stderr, "down : %d <--> %d\n", a[j], a[j-1]);
-                int tmp = a[j - 1];
-                a[j - 1] = a[j];
-                a[j] = tmp;
+                swap(a, j - 1, j);
                 pos = j;
             }
         }
@@ -38,7 +32,7 @@ void bubble_sort_ok(int a[], int n)
         
         //fprintf(stderr, "low=%d high=%d\n", low, high);
     }
-    fprintf(stderr, " >> %d\n", count);
+    fprintf(stderr, " >> the number of swap is %d\n", count);
 }
 
 int main()
@@ -46,6 +40,6 @@ int main()
     //init_array(array, ARRAY_LENGTH);
     //print_array(array, ARRAY_LENGTH);
     bubble_sort_ok(array, ARRAY_LENGTH);
-    print_array(array, ARRAY_LENGTH);
+    //print_array(array, ARRAY_LENGTH);
     return 0;
 }

@@ -1,4 +1,5 @@
 #include "public.h"
+
 void bubble_sort(int a[], int n)
 {
     int count = 0;
@@ -9,10 +10,7 @@ void bubble_sort(int a[], int n)
             count++;
             if (a[j] > a[j + 1])
             {
-                //fprintf(stderr, "---- : %d <--> %d\n", a[j], a[j+1]);
-                int tmp = a[j + 1];
-                a[j + 1] = a[j];
-                a[j] = tmp;
+                swap(a, j, j + 1);
             }
         }
     }
@@ -24,6 +22,6 @@ int main()
     //init_array(array, ARRAY_LENGTH);
     //print_array(array, ARRAY_LENGTH);
     bubble_sort(array, ARRAY_LENGTH);
-    print_array(array, ARRAY_LENGTH);
+    //print_array(array, ARRAY_LENGTH);
     return 0;
 }
