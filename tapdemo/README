@@ -1,0 +1,14 @@
+Usage : ./tapdemo -n tap_name [-i interval]
+
+参数说明：
+tapname, 指定要要创建的tap口的名称；
+interval, 指定像tap口写入报文的时间间隔，单位秒；
+
+验证方法：
+./tapdemo -n tap0 -i 10s
+ifconfig tap0 1.1.1.1/24 up
+tcpdump -i tap0 -v
+
+验证结果：
+1. tapdemo每隔10s向tap口写入的报文，可以通过tcpdump抓到；
+2. 执行ping 1.1.1.2命令，tapdemo可以读取到tap口发出的arp报文；
